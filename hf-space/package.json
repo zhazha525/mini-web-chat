@@ -1,0 +1,12 @@
+{
+  "name": "mini-web-chat",
+  "version": "1.0.0",
+  "description": "零依赖小型网页聊天（电脑/手机浏览器通用，SSE 实时）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
