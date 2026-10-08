@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>内部聊天</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --line: #e5e7eb; --text: #1f2329;
+    --muted: #8a9099; --brand: #185fa5; --brand2: #e6f1fb; --me: #dcfce7;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; height: 100dvh;
+  }
+  header {
+    padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header .status { font-size: 12px; color: var(--muted); margin-left: auto; }
+  header .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #c0392b; margin-right: 5px; vertical-align: middle; }
+  header .dot.on { background: #22a06b; }
+  #nick {
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
+    font-size: 13px; width: 110px; outline: none;
+  }
+  #msgs {
+    flex: 1; overflow-y: auto; padding: 12px 14px; display: flex;
+    flex-direction: column; gap: 10px;
+  }
+  .msg { max-width: 78%; padding: 8px 12px; border-radius: 14px; background: var(--card);
+    border: 1px solid var(--line); font-size: 14px; line-height: 1.5; word-break: break-word; }
+  .msg .who { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .msg.me { align-self: flex-end; background: var(--me); border-color: #bbf7d0; }
+  .sys { align-self: center; font-size: 12px; color: var(--muted); }
+  footer {
+    display: flex; gap: 8px; padding: 10px 12px; background: var(--card);
+    border-top: 1px solid var(--line); flex-shrink: 0;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+  #text {
+    flex: 1; border: 1px solid var(--line); border-radius: 20px; padding: 10px 14px;
+    font-size: 15px; outline: none; background: var(--bg);
+  }
+  #send {
+    border: none; background: var(--brand); color: #fff; border-radius: 20px;
+    padding: 0 18px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  #send:active { opacity: .85; }
+  .hbtn { border: 1px solid var(--line); background: var(--brand2); color: var(--brand);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  .hbtn:active { opacity: .85; }
+  .toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
+    background: rgba(31,35,41,.92); color: #fff; padding: 8px 16px; border-radius: 20px;
+    font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+  .toast.show { opacity: 1; }
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex;
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  .overlay .box { background: #fff; padding: 22px; border-radius: 14px; width: 86%; max-width: 320px; }
+  .overlay h2 { margin: 0 0 12px; font-size: 16px; }
+  .overlay input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 15px; }
+  .overlay button { margin-top: 14px; width: 100%; border: none; background: var(--brand); color: #fff; padding: 11px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>内部聊天</h1>
+  <span class="status"><span class="dot" id="dot"></span><span id="statustxt">连接中…</span></span>
+  <input id="nick" placeholder="昵称" maxlength="24" />
+  <button id="invite" class="hbtn">邀请</button>
+</header>
+<div class="toast" id="toast"></div>
+<div id="msgs"></div>
+<footer>
+  <input id="text" placeholder="输入消息，回车发送" autocomplete="off" />
+  <button id="send">发送</button>
+</footer>
+
+<div class="overlay" id="overlay">
+  <div class="box">
+    <h2>设置昵称</h2>
+    <input id="nickInput" placeholder="例如：张三" maxlength="24" />
+    <button id="nickOk">进入聊天</button>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const room = params.get('room') || 'lobby';
+  const key = params.get('key') || '';
+
+  const msgsEl = document.getElementById('msgs');
+  const dotEl = document.getElementById('dot');
+  const statusEl = document.getElementById('statustxt');
+  const nickEl = document.getElementById('nick');
+
+  let nick = localStorage.getItem('chat_nick') || '';
+
+  function setStatus(ok, txt) {
+    dotEl.classList.toggle('on', ok);
+    statusEl.textContent = txt;
+  }
+
+  function addMsg(m) {
+    const div = document.createElement('div');
+    if (m.type === 'system') { div.className = 'sys'; div.textContent = m.text; }
+    else {
+      const mine = m.user === nick;
+      div.className = 'msg' + (mine ? ' me' : '');
+      const who = document.createElement('div'); who.className = 'who'; who.textContent = m.user;
+      const body = document.createElement('div'); body.textContent = m.text;
+      div.appendChild(who); div.appendChild(body);
+    }
+    msgsEl.appendChild(div);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  let es = null;
+  function connect() {
+    const q = new URLSearchParams({ room, key, nick });
+    es = new EventSource('/events?' + q.toString());
+    es.onopen = () => setStatus(true, '已连接');
+    es.onerror = () => setStatus(false, '断开，重连中…');
+    es.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === 'history') m.messages.forEach(addMsg);
+      else addMsg(m);
+    };
+  }
+
+  async function send() {
+    const text = document.getElementById('text').value.trim();
+    if (!text) return;
+    document.getElementById('text').value = '';
+    const q = new URLSearchParams({ room, key });
+    await fetch('/send?' + q.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: nick || '匿名', text }),
+    }).catch(() => {});
+  }
+
+  document.getElementById('send').onclick = send;
+  document.getElementById('text').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+
+  // 昵称设置
+  const overlay = document.getElementById('overlay');
+  if (nick) { overlay.style.display = 'none'; nickEl.value = nick; }
+  document.getElementById('nickOk').onclick = () => {
+    const v = document.getElementById('nickInput').value.trim();
+    if (!v) return;
+    nick = v; localStorage.setItem('chat_nick', nick);
+    nickEl.value = nick; overlay.style.display = 'none'; connect();
+  };
+  nickEl.addEventListener('change', () => { nick = nickEl.value.trim() || nick; localStorage.setItem('chat_nick', nick); });
+  function toast(t) {
+    const el = document.getElementById('toast');
+    el.textContent = t; el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 1600);
+  }
+  document.getElementById('invite').onclick = () => {
+    const link = location.origin + location.pathname + location.search;
+    navigator.clipboard.writeText(link)
+      .then(() => toast('邀请链接已复制，发给大家即可'))
+      .catch(() => window.prompt('复制此链接发给大家：', link));
+  };
+  if (nick) connect();
+</script>
+</body>
+</html>
