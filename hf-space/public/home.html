@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>内部聊天 · 建群</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --line:#e5e7eb; --text:#1f2329; --muted:#8a9099; --brand:#185fa5; --brand2:#e6f1fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100dvh; background:var(--bg); color:var(--text);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:24px; width:100%; max-width:380px; }
+  h1 { font-size:18px; margin:0 0 8px; }
+  p { font-size:13px; color:var(--muted); line-height:1.6; margin:0 0 18px; }
+  input { width:100%; border:1px solid var(--line); border-radius:10px; padding:12px;
+    font-size:15px; outline:none; margin-bottom:12px; }
+  button { width:100%; border:none; background:var(--brand); color:#fff; padding:12px;
+    border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; }
+  button:active { opacity:.85; }
+  .hidden { display:none; }
+  #result { margin-top:6px; border-top:1px dashed var(--line); padding-top:16px; }
+  .link { background:var(--bg); border:1px solid var(--line); border-radius:10px;
+    padding:10px; font-size:12px; word-break:break-all; color:var(--muted); margin-bottom:12px; }
+  #copy { background:var(--brand2); color:var(--brand); margin-bottom:10px; }
+  .enter { display:block; text-align:center; background:var(--brand); color:#fff;
+    text-decoration:none; padding:12px; border-radius:10px; font-weight:600; font-size:15px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>内部聊天 · 建群</h1>
+    <p>输入一个群名，生成专属邀请链接，发给朋友即可进群。数据在你自己服务器，无平台审核、无人数限制。</p>
+    <input id="grp" placeholder="群名称，例如：财经交流" maxlength="24" />
+    <button id="gen">生成邀请链接</button>
+    <div id="result" class="hidden">
+      <div class="link" id="link"></div>
+      <button id="copy">复制链接</button>
+      <a id="enter" class="enter" href="#">进入群聊</a>
+    </div>
+  </div>
+<script>
+  const grp = document.getElementById('grp');
+  const gen = document.getElementById('gen');
+  const result = document.getElementById('result');
+  const linkEl = document.getElementById('link');
+  const copyBtn = document.getElementById('copy');
+  const enter = document.getElementById('enter');
+  gen.onclick = () => {
+    const name = grp.value.trim();
+    if (!name) return;
+    const url = location.origin + '/?room=' + encodeURIComponent(name);
+    linkEl.textContent = url;
+    enter.href = url;
+    result.classList.remove('hidden');
+  };
+  copyBtn.onclick = () => {
+    navigator.clipboard.writeText(linkEl.textContent)
+      .then(() => { copyBtn.textContent = '已复制，去发给大家'; })
+      .catch(() => window.prompt('复制此链接发给大家：', linkEl.textContent));
+  };
+  grp.addEventListener('keydown', e => { if (e.key === 'Enter') gen.onclick(); });
+</script>
+</body>
+</html>
