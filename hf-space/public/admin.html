@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>聊天后台</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --text:#e2e8f0; --muted:#94a3b8; --brand:#38bdf8; --me:#22c55e; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:16px; }
+  h1 { font-size:18px; margin:0 0 12px; }
+  .login { max-width:340px; margin:80px auto; background:var(--card); padding:24px; border-radius:14px; border:1px solid var(--line); }
+  .login input { width:100%; padding:11px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:15px; }
+  .login button { margin-top:14px; width:100%; padding:11px; border:none; background:var(--brand); color:#06283b; font-weight:700; border-radius:8px; font-size:15px; cursor:pointer; }
+  .wrap { display:none; }
+  .summary { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 18px; }
+  .stat b { font-size:22px; display:block; }
+  .stat span { color:var(--muted); font-size:13px; }
+  .room { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .room h2 { font-size:15px; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
+  .tag { font-size:12px; background:var(--bg); border:1px solid var(--line); color:var(--muted); padding:2px 8px; border-radius:20px; }
+  .tag.on { color:var(--me); border-color:var(--me); }
+  .users { color:var(--muted); font-size:13px; margin-bottom:8px; }
+  .msg { font-size:13px; border-top:1px solid var(--line); padding:6px 0; line-height:1.5; }
+  .msg .who { color:var(--brand); margin-right:6px; }
+  .msg .t { color:var(--muted); font-size:11px; margin-left:6px; }
+  .refresh { color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="login" id="login">
+  <h1>聊天后台登录</h1>
+  <input id="pass" type="password" placeholder="请输入管理密码 ADMIN_PASS" />
+  <button id="go">进入</button>
+  <div style="color:var(--muted);font-size:12px;margin-top:10px">密码在部署时通过环境变量 ADMIN_PASS 设置</div>
+</div>
+
+<div class="wrap" id="wrap">
+  <h1>聊天后台 <span class="refresh" id="ts"></span></h1>
+  <div class="summary">
+    <div class="stat"><b id="total">0</b><span>总消息数</span></div>
+    <div class="stat"><b id="online">0</b><span>当前在线连接</span></div>
+    <div class="stat"><b id="rooms">0</b><span>群/房间数</span></div>
+  </div>
+  <div id="list"></div>
+</div>
+
+<script>
+  const passEl = document.getElementById('pass');
+  const loginEl = document.getElementById('login');
+  const wrapEl = document.getElementById('wrap');
+  let pass = '';
+
+  async function load() {
+    const r = await fetch('/admin/data', { headers: { 'x-admin-pass': pass } });
+    if (r.status !== 200) { alert('密码错误'); return; }
+    const d = await r.json();
+    document.getElementById('total').textContent = d.total;
+    document.getElementById('online').textContent = d.onlineTotal;
+    document.getElementById('rooms').textContent = d.rooms.length;
+    document.getElementById('ts').textContent = '· 更新于 ' + new Date().toLocaleTimeString();
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    for (const rm of d.rooms) {
+      const div = document.createElement('div');
+      div.className = 'room';
+      const onlineTag = rm.onlineCount > 0 ? `<span class="tag on">在线 ${rm.onlineCount}</span>` : `<span class="tag">无人</span>`;
+      const users = rm.users.length ? '历史用户：' + rm.users.join('、') : '暂无发言用户';
+      const onNames = rm.online.length ? '当前在线：' + rm.online.join('、') : '当前在线：无';
+      let recent = '';
+      for (const m of rm.recent.slice().reverse()) {
+        const time = new Date(m.ts).toLocaleString();
+        recent += `<div class="msg"><span class="who">${m.user}</span>${m.text}<span class="t">${time}</span></div>`;
+      }
+      div.innerHTML = `<h2>${rm.room} ${onlineTag} <span class="tag">消息 ${rm.messages}</span></h2>
+        <div class="users">${users}</div>
+        <div class="users">${onNames}</div>
+        <div>${recent || '<div class="msg">暂无消息</div>'}</div>`;
+      list.appendChild(div);
+    }
+  }
+
+  document.getElementById('go').onclick = () => {
+    pass = passEl.value.trim();
+    if (!pass) return;
+    loginEl.style.display = 'none';
+    wrapEl.style.display = 'block';
+    load();
+    setInterval(load, 5000);
+  };
+  passEl.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('go').click(); });
+</script>
+</body>
+</html>
